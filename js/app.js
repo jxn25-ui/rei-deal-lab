@@ -10,7 +10,7 @@
     state: "MO", city: "Kansas City", beds: 3, baths: 2, sqft: 1450, stories: 1, year: 1958,
     price: 112000, asIs: 142000, arv: 232000, rent: 1950, repairs: 45000, repairsLinked: true, hoa: 0,
     owner: false, taxAuto: true, taxRate: 1.4, insAuto: true, insAnnual: 2500, rate: 6.875,
-    zip: "64131", lot: 7200, garage: 1, bsmt: 0, pool: false, cond: 5, condAfter: 3, qual: 4, loc: "N", lat: 0, lng: 0,
+    zip: "64131", cityName: "Kansas City", lot: 7200, garage: 1, bsmt: 0, pool: false, cond: 5, condAfter: 3, qual: 4, loc: "N", lat: 0, lng: 0,
     comps: [],
     compSet: { mode: "arv", area: "suburban", maxMonths: 6, maxDist: 1, glaTol: 20, ageTol: 15, autoRates: true, trendMo: 0.25, glaPct: 35,
       glaRate: 55, bedAdj: 3500, bathAdj: 6000, halfAdj: 3000, garageAdj: 5000, bsmtRate: 25, lotRate: 1.5, ageRate: 700, condPct: 6, qualPct: 7, locPct: 5, pool: 9000, distressPct: 0 },
@@ -100,11 +100,15 @@
     const keys = [...q.keys()].map(k => alias[k.toLowerCase()] || k);
     if (keys.some(k => num.includes(k) || ["addr", "zip", "state", "city", "name"].includes(k))) {
       const d = App.defaults(); d.comps = [];
-      q.forEach((v, k) => { k = alias[k.toLowerCase()] || k; v = v.trim();
+      const full = q.get("address") || q.get("addr");
+      const parsed = full && G.Addr ? G.Addr.parse(full) : null;
+      if (parsed && (parsed.city || parsed.state || parsed.zip)) G.Addr.apply(d, parsed); else if (full) d.addr = full.slice(0, 200);
+      q.forEach((v, k) => { k = alias[k.toLowerCase()] || k; v = v.trim(); if (k === "addr") return;
         if (num.includes(k)) { const x = parseFloat(v.replace(/[^0-9.\-]/g, "")); if (isFinite(x)) d[k] = x; }
         else if (k === "state") { if (REI.states[v.toUpperCase()]) d.state = v.toUpperCase(); }
         else if (k === "city") d.city = v; else if (["addr", "zip", "name"].includes(k)) d[k] = v.slice(0, 200); });
-      if (d.city && !REI.cities.some(c => c.n === d.city && c.s === d.state)) d.city = "";
+      if (q.has("city")) d.cityName = d.city;
+      d.city = G.Addr ? G.Addr.preset(d.cityName, d.state) : (REI.cities.some(c => c.n === d.city && c.s === d.state) ? d.city : "");
       if (q.has("repairs") || q.has("rehab")) d.repairsLinked = false;
       d.name = q.get("name") || d.addr || "Linked property";
       App.D = d; App.fromLink = true;
@@ -150,6 +154,7 @@
       <div class="mh-txt"><p class="eyebrow">${U.esc(o.eyebrow)}</p><h1>${U.esc(o.title)}</h1><p class="lede">${o.lede}</p>${o.noStrip ? "" : App.marketStrip()}</div>
       ${o.playbook ? `<div class="mh-tabs" role="tablist"><button role="tab" aria-selected="true" data-pane="num" class="on">Underwrite</button><button role="tab" aria-selected="false" data-pane="pb">Playbook</button></div>` : ""}
     </header>
+    ${o.top || ""}
     <div class="split${o.wide ? " wide" : ""}">
       <aside class="inputs" aria-label="Inputs">${o.inputs}</aside>
       <section class="results" data-panel="num">${o.results}</section>

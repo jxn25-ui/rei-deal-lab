@@ -274,7 +274,7 @@
         ], D);
       const links = zipLinks(D.zip);
       root.innerHTML = App.layout({
-        eyebrow: "Analyze", title: "Comp Analyzer", wide: true,
+        eyebrow: "Analyze", title: "Comp Analyzer", wide: true, top: G.Addr ? G.Addr.bar(D) : "",
         lede: `Value the property the way an appraiser does: pick truly comparable closed sales, adjust each one toward the subject, check the guidelines, and reconcile a weighted value for ${arv ? "ARV" : "as-is value"}.`,
         inputs,
         results: `${D.comps.some(c => c.sample) ? `<div class="verdict warn"><span class="vd-dot"></span><div><b>Example comps</b><p>These ${D.comps.filter(c => c.sample).length} sales are made-up examples for the sample deal. Import or enter real sold comps for your property, then remove these.</p></div><button type="button" class="btn ghost sm" id="cpClearSample">Remove examples</button></div>` : ""}
@@ -300,6 +300,7 @@
         }
       });
       this.bind(root);
+      G.Addr && G.Addr.bind(root);
       V.radar(root.querySelector("#cpRadar"), () => App._cpRadar);
     },
     bind(root) {

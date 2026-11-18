@@ -395,6 +395,19 @@ body.gl-off .gt:not(.demo){text-decoration:none;cursor:inherit}body.gl-off .gt:n
 .simcell{display:inline-flex;gap:6px;align-items:center}
 .tbl.pool td{font-size:12px}.tbl.pool .pa{font-family:var(--f-body);max-width:220px}.tbl.pool .pact{white-space:nowrap;display:flex;gap:4px;justify-content:flex-end}
 .chart .pulse{animation:pls 2s ease-in-out infinite;transform-box:fill-box;transform-origin:center}@keyframes pls{50%{opacity:.6}}
+
+/* ---------- address bar ---------- */
+.addrbar{background:var(--panel);border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line));border-radius:var(--r);padding:12px 14px;margin:0 0 18px;box-shadow:var(--shadow)}
+.addrbar>label{display:block;font:600 10.5px var(--f-mono);letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.ab-row{display:flex;gap:8px;align-items:center;background:var(--bg2);border:1px solid var(--line2);border-radius:9px;padding:4px 4px 4px 10px}
+.ab-row:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.ab-row svg{width:18px;height:18px;flex:none;fill:none;stroke:var(--accent);stroke-width:1.8}
+.ab-row input{flex:1;min-width:0;background:transparent;border:0;outline:none;padding:8px 2px;font:500 15px var(--f-body)}
+.ab-out{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:center}
+.ab-c{display:inline-flex;gap:6px;align-items:baseline;font:500 12.5px var(--f-mono);padding:4px 9px;border-radius:7px;border:1px solid var(--line);background:var(--bg2)}
+.ab-c em{font:600 9.5px var(--f-mono);font-style:normal;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.ab-c.ok{border-color:color-mix(in srgb,var(--good) 40%,var(--line))}.ab-c.miss{color:var(--warn);border-style:dashed}
+.ab-m{font-size:12.5px;color:var(--muted);margin-left:4px}.ab-m b{color:var(--fg);font-weight:600}
 /* ---------- toast / confirm ---------- */
 #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);opacity:0;pointer-events:none;background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:600;z-index:60;transition:all .25s;max-width:calc(100% - 32px)}
 #toast.on{opacity:1;transform:translate(-50%,0)}
@@ -441,6 +454,7 @@ body.gl-off .gt:not(.demo){text-decoration:none;cursor:inherit}body.gl-off .gt:n
 <div id="confirm" hidden role="alertdialog" aria-label="Confirm"><p></p><button type="button" class="btn ghost sm no">Cancel</button><button type="button" class="btn sm yes">Confirm</button></div>
 
 <script src="js/data.js" charset="utf-8"></script>
+<script src="js/address.js" charset="utf-8"></script>
 <script src="js/fin.js" charset="utf-8"></script>
 <script src="js/ui.js" charset="utf-8"></script>
 <script src="js/viz.js" charset="utf-8"></script>

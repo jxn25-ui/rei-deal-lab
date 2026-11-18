@@ -67,7 +67,7 @@
       st, city, costMult, insBase, coverage, landlordAdj, autoTax, autoIns,
       taxRate: D.taxAuto ? autoTax : n(D.taxRate),
       insAnnual: D.insAuto ? autoIns : n(D.insAnnual),
-      label: (city ? city.n + ", " : "") + st.name
+      label: (city ? city.n + ", " : D.cityName ? D.cityName + ", " : "") + st.name
     };
   };
 

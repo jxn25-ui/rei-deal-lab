@@ -44,7 +44,7 @@
       if (D.city && !cities.some(c => c[0] === D.city)) D.city = "";
       const inputs =
         U.fieldset("Property", [
-          { k: "addr", l: "Address", t: "text" }, { k: "zip", l: "ZIP code", t: "text" }, { k: "beds", l: "Beds", t: "num" }, { k: "baths", l: "Baths", t: "num" },
+          { k: "addr", l: "Street address", t: "text" }, { k: "cityName", l: "City", t: "text" }, { k: "zip", l: "ZIP code", t: "text" }, { k: "beds", l: "Beds", t: "num" }, { k: "baths", l: "Baths", t: "num" },
           { k: "sqft", l: "Living area", t: "sqft" }, { k: "stories", l: "Stories", t: "num" }, { k: "year", l: "Year built", t: "num", hint: "Pre-1978: lead paint disclosure. Pre-1960: budget for sewer, electrical and plumbing surprises." }
         ], D) +
         U.fieldset("Market · drives taxes & insurance", [
@@ -59,7 +59,7 @@
         ], D) +
         U.fieldset("The numbers", App.basics(["price", "asIs", "arv", "rent", "repairs", "hoa"]), D, `<div class="row"><button type="button" class="btn ghost sm" data-go="comps">Comp this property →</button><button type="button" class="btn ghost sm" data-go="repairs">Estimate repairs →</button></div>`);
       root.innerHTML = App.layout({
-        eyebrow: "Analyze", title: "Deal Hub", noStrip: true,
+        eyebrow: "Analyze", title: "Deal Hub", noStrip: true, top: G.Addr ? G.Addr.bar(D) : "",
         lede: "Enter the property once. Every strategy tab reads these numbers, so you can run the same house through all nine exits and compare.",
         inputs,
         results: `
@@ -69,8 +69,9 @@
           ${App.card("Market & PITI build-up", "market")}`
       });
       V.pulse(root.querySelector("#hubPulse"), () => App._hubCF);
+      G.Addr && G.Addr.bind(root);
     },
-    onChange(path) { if (path === "state") { App.D.city = ""; App.show("hub"); } if (path === "city" || path === "owner") App.show("hub"); },
+    onChange(path) { const D = App.D; if (path === "state") { D.city = G.Addr ? G.Addr.preset(D.cityName, D.state) : ""; App.show("hub"); } if (path === "city") { if (D.city) D.cityName = D.city; App.show("hub"); } if (path === "owner") App.show("hub"); if (path === "cityName" && G.Addr) D.city = G.Addr.preset(D.cityName, D.state); },
     update() {
       const D = App.D, M = App.M(), S = D.s;
       if (D.taxAuto) D.taxRate = M.autoTax; if (D.insAuto) D.insAnnual = M.autoIns;
