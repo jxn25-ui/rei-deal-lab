@@ -18,7 +18,7 @@ body = re.search(r"<body>(.*?)</body>", src, re.S).group(1)
 # drop tags the artifact skeleton already provides
 head = re.sub(r'\s*<meta (charset|name="viewport")[^>]*>', "", head)
 head = re.sub(r'\s*<link rel="icon"[^>]*>', "", head)
-body = re.sub(r'(src="js/[^"?]+)\?v=[^"]*"', r'"', body)  # artifact files are served without query strings
+body = re.sub(r'(src="js/[^"?]+)[?]v=[^"]*"', lambda m: m.group(1) + '"', body)  # artifact files are served without query strings
 out = root / ".artifact" / "index.html"
 out.parent.mkdir(exist_ok=True)
 out.write_text(head.strip() + "\n\n" + body.strip() + "\n", encoding="utf-8")
