@@ -90,6 +90,7 @@
       if (grossPct > 25) { sim -= 10; flags.push(["bad", `Gross adjustment ${grossPct.toFixed(0)}% (guideline ≤ 25%).`]); }
       if (Math.abs(netPct) > 15) { sim -= 8; flags.push(["bad", `Net adjustment ${netPct.toFixed(0)}% (guideline ≤ 15%).`]); }
       if (!c.condChecked) flags.push(["info", "Condition not verified. Check listing photos or drive by."]);
+      if (c.listPrice && c.status === "Sold") { sim -= 5; flags.push(["warn", `${c.src || "Imported"} gives the last list price, not a confirmed sale. Check the sold price (county records, Redfin, or an agent) and edit it.`]); }
       if (!price) { sim = 0; flags.push(["bad", "No price."]); }
       sim = Math.max(0, Math.min(100, Math.round(sim)));
       return { c, i, base, months, dist, A, net, gross, adjusted, netPct, grossPct, sim, flags, glaD, psf: c.sqft ? base / c.sqft : 0, tAdj: base + A.time };
@@ -195,6 +196,53 @@
     return { added, msg: added ? `Imported ${added} propert${added === 1 ? "y" : "ies"}.` : "No new rows with a price were found." };
   };
 
+  /* ---------- automatic pulls through the comps Worker (RentCast) ---------- */
+  C.api = () => { const c = App.LS.get("rdl.api", {}) || {}; return { url: String(c.url || (G.REI_CONFIG || {}).compsApi || "").trim().replace(/\/+$/, ""), code: c.code || "" }; };
+  C.call = async (path, params) => {
+    const { url, code } = C.api();
+    if (!url) throw { msg: "Add your comps Worker address in Connection settings first." };
+    const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== "" && v != null && !(typeof v === "number" && !isFinite(v))));
+    let r;
+    try { r = await fetch(`${url}/${path}?${q}`, { headers: code ? { "X-Access-Code": code } : {} }); }
+    catch (e) { throw { msg: location.hostname.includes("claude") ? "This copy can't reach outside services. Use the hosted site to pull comps." : "Couldn't reach your comps Worker. Check the address in Connection settings." }; }
+    let j = null; try { j = await r.json(); } catch (e) { }
+    if (!r.ok) {
+      const m = j && (j.message || j.error) || `HTTP ${r.status}`;
+      throw { msg: r.status === 401 ? (j && j.error === "access_code" ? "Wrong access code. Fix it in Connection settings." : "RentCast rejected the API key. Re-run: npx wrangler secret put RENTCAST_API_KEY") :
+        r.status === 404 ? "RentCast couldn't find that address. Check street, city, state and ZIP." : r.status === 429 ? "RentCast rate limit or monthly quota reached." : m };
+    }
+    return { j, cached: r.headers.get("X-Cache") === "HIT" };
+  };
+  C.subjectParams = D => ({ address: G.Addr ? G.Addr.full(D) : D.addr, propertyType: D.compSet.ptype || "Single Family" });
+  C.mapRC = x => {
+    const sold = /inactive/i.test(x.status || "");
+    return C.newComp({
+      addr: x.formattedAddress || [x.addressLine1, x.city, x.state].filter(Boolean).join(", "), status: sold ? "Sold" : "Active",
+      price: +x.price || 0, date: sold ? C.iso(x.removedDate || x.lastSeenDate) : "", sqft: +x.squareFootage || 0, beds: +x.bedrooms || 0, baths: +x.bathrooms || 0,
+      year: +x.yearBuilt || 0, lot: +x.lotSize || 0, lat: num(x.latitude), lng: num(x.longitude), dist: x.distance != null ? +(+x.distance).toFixed(2) : null,
+      dom: x.daysOnMarket != null ? +x.daysOnMarket : null, src: "RentCast", listPrice: sold
+    });
+  };
+  C.pullValue = async D => {
+    const S = D.compSet;
+    const { j, cached } = await C.call("value", { ...C.subjectParams(D), compCount: 25, maxRadius: Math.max(0.5, +S.maxDist || 1) * 1.5, daysOld: Math.min(730, Math.round((+S.maxMonths || 6) * 30.4 * 1.5)) });
+    const seen = new Set(D.comps.map(c => (c.addr || "").toLowerCase()));
+    let added = 0;
+    (j.comparables || []).forEach(x => { const c = C.mapRC(x); if (!c.price || seen.has(c.addr.toLowerCase()) || D.comps.length >= 250) return; seen.add(c.addr.toLowerCase()); D.comps.push(c); added++; });
+    if (added && D.comps.some(c => c.sample)) D.comps = D.comps.filter(c => !c.sample);
+    S.rcValue = j.price ? { price: +j.price, lo: +j.priceRangeLow || 0, hi: +j.priceRangeHigh || 0, at: Date.now() } : null;
+    S.rcSubject = j.subjectProperty || null;
+    if (j.subjectProperty && !(+D.lat && +D.lng) && j.subjectProperty.latitude) { D.lat = +j.subjectProperty.latitude; D.lng = +j.subjectProperty.longitude; }
+    return { added, total: (j.comparables || []).length, cached };
+  };
+  C.pullRent = async D => {
+    const { j, cached } = await C.call("rent", { ...C.subjectParams(D), compCount: 15, maxRadius: Math.max(0.5, +D.compSet.maxDist || 1) * 2, daysOld: 270 });
+    D.compSet.rcRent = { rent: +j.rent || 0, lo: +j.rentRangeLow || 0, hi: +j.rentRangeHigh || 0, at: Date.now(),
+      comps: (j.comparables || []).slice(0, 6).map(x => ({ a: x.formattedAddress || x.addressLine1, p: +x.price || 0, b: x.bedrooms, ba: x.bathrooms, sf: x.squareFootage, d: x.distance })) };
+    if (!D.compSet.rcSubject && j.subjectProperty) D.compSet.rcSubject = j.subjectProperty;
+    return { cached };
+  };
+
   /* ---------- sample comps for the sample deal (clearly marked) ---------- */
   const sample = () => [
     { addr: "1502 Larkspur Ave", price: 236500, date: "2026-09-22", conc: 3000, dist: 0.1, sqft: 1480, beds: 3, baths: 2, year: 1956, lot: 7000, garage: 1, cond: 2, dom: 9, grid: true },
@@ -251,7 +299,8 @@
       if (S.autoRates) C.autoRates(D);
       const inputs =
         U.fieldset("What are you valuing?", [{ k: "compSet.mode", l: "Value", t: "seg", opts: [["arv", "ARV (after repairs)"], ["asis", "As-is value"]] },
-          { k: "compSet.area", l: "Area type (sets search radius)", t: "seg", opts: [["urban", "Urban"], ["suburban", "Suburban"], ["rural", "Rural"]] }], D) +
+          { k: "compSet.area", l: "Area type (sets search radius)", t: "seg", opts: [["urban", "Urban"], ["suburban", "Suburban"], ["rural", "Rural"]] },
+          { k: "compSet.ptype", l: "Property type (for automatic pulls)", t: "sel", opts: [["Single Family", "Single family"], ["Townhouse", "Townhouse"], ["Condo", "Condo"], ["Multi-Family", "Multi-family (2–4)"], ["Manufactured", "Manufactured"]] }], D) +
         U.fieldset("Subject property", [
           { k: "zip", l: "ZIP code", t: "text" }, { k: "sqft", l: "GLA (above-grade sq ft)", t: "sqft", hint: "Gross living area: finished, heated, above-grade space. Basements are counted separately." },
           { k: "beds", l: "Beds", t: "num" }, { k: "baths", l: "Baths", t: "num", hint: "2.5 = two full baths and one half bath." }, { k: "year", l: "Year built", t: "num" }, { k: "lot", l: "Lot (sq ft)", t: "num" },
@@ -272,7 +321,7 @@
           { k: "compSet.condPct", l: "Per condition step", t: "pct" }, { k: "compSet.qualPct", l: "Per quality step", t: "pct" }, { k: "compSet.locPct", l: "Location influence", t: "pct" },
           { k: "compSet.distressPct", l: "Distressed-sale uplift", t: "pct", hint: "Adds this % to REO / short / auction sales to make them retail-equivalent. Leave at 0 and exclude them unless you have market support." }
         ], D);
-      const links = zipLinks(D.zip);
+      const links = zipLinks(D.zip), apiCfg = C.api();
       root.innerHTML = App.layout({
         eyebrow: "Analyze", title: "Comp Analyzer", wide: true, top: G.Addr ? G.Addr.bar(D) : "",
         lede: `Value the property the way an appraiser does: pick truly comparable closed sales, adjust each one toward the subject, check the guidelines, and reconcile a weighted value for ${arv ? "ARV" : "as-is value"}.`,
@@ -281,11 +330,21 @@
           <div data-slot="cp-kpis"></div><div data-slot="cp-verdict"></div>
           <div class="card"><div class="card-h"><h3>Find & import comps</h3><span class="sub">Real sold data comes from the MLS or listing sites; this tool does the analysis</span></div>
             <div class="cp-find">
-              <div><h4>1 · Pull sold comps</h4>${links.length ? `<div class="row">${links.map(l => `<a class="btn ghost sm" href="${l[1]}" target="_blank" rel="noopener">${l[0]} ↗</a>`).join("")}</div>` : `<p class="fine">Enter the subject's ZIP code to get search links.</p>`}
+              <div><h4>Pull automatically · RentCast</h4>${apiCfg.url ? `<div class="row"><button type="button" class="btn sm" id="cpPullV">Pull sale comps</button><button type="button" class="btn ghost sm" id="cpPullR">Pull rent comps</button></div>
+                <p class="fine">Uses the subject address above. Each new address uses one RentCast lookup per button; repeats are cached for a week.</p>`
+                : `<p class="fine">Connect your RentCast Worker once and comps arrive with one click. <a href="https://github.com/jxn25-ui/rei-deal-lab#pull-comps-automatically" target="_blank" rel="noopener">Setup guide ↗</a></p>`}
+                <details class="cp-conn"${apiCfg.url ? "" : " open"}><summary>Connection settings</summary>
+                  <label for="cpApiUrl">Worker address</label><input id="cpApiUrl" class="gc gc-t" placeholder="https://rei-deal-lab-comps.you.workers.dev" value="${U.esc(apiCfg.url)}" autocomplete="off" spellcheck="false">
+                  <label for="cpApiCode">Access code (if you set one)</label><input id="cpApiCode" class="gc gc-t" type="password" value="${U.esc(apiCfg.code)}" autocomplete="off">
+                  <div class="row"><button type="button" class="btn sm" id="cpApiSave">Save</button><button type="button" class="btn ghost sm" id="cpApiTest">Test connection</button></div>
+                  <p class="fine">Saved in this browser only. Your RentCast key stays inside the Worker, never on this page.</p></details>
+                <div data-slot="cp-rc"></div></div>
+              <div><h4>Search listing sites</h4>${links.length ? `<div class="row">${links.map(l => `<a class="btn ghost sm" href="${l[1]}" target="_blank" rel="noopener">${l[0]} ↗</a>`).join("")}</div>` : `<p class="fine">Enter the subject's ZIP code to get search links.</p>`}
                 <p class="fine">On Redfin: filter to Sold · last 6 months, draw a tight boundary around the subject, then scroll below the results and click <b>Download All</b> for a CSV. Investor tools (PropStream, Privy, MLS) export CSVs that import the same way.</p></div>
-              <div><h4>2 · Import</h4><div class="row"><label class="btn sm" for="cpFile">Upload CSV</label><input type="file" id="cpFile" accept=".csv,.tsv,.txt,text/csv" hidden><button type="button" class="btn ghost sm" id="cpAdd">Add a comp by hand</button><button type="button" class="btn ghost sm" id="cpBest">Pick best 5</button></div>
+              <div><h4>Import a file</h4><div class="row"><label class="btn sm" for="cpFile">Upload CSV</label><input type="file" id="cpFile" accept=".csv,.tsv,.txt,text/csv" hidden><button type="button" class="btn ghost sm" id="cpAdd">Add a comp by hand</button><button type="button" class="btn ghost sm" id="cpBest">Pick best 5</button></div>
                 <label for="cpPaste" class="sr">Paste comps</label><textarea id="cpPaste" rows="3" placeholder="…or paste rows from a spreadsheet with a header row (Address, Sold Price, Sold Date, Sq Ft, Beds, Baths, Year Built…)"></textarea>
-                <div class="row"><button type="button" class="btn ghost sm" id="cpPasteGo">Import pasted rows</button>${D.comps.length ? `<button type="button" class="btn ghost sm danger" id="cpClear">Remove all comps</button>` : ""}<span class="fine" id="cpMsg"></span></div></div>
+                <div class="row"><button type="button" class="btn ghost sm" id="cpPasteGo">Import pasted rows</button>${D.comps.length ? `<button type="button" class="btn ghost sm danger" id="cpClear">Remove all comps</button>` : ""}<span class="fine" id="cpMsg"></span></div>
+                <p class="fine">Free true sold prices: run the HomeHarvest script on your computer and upload the CSV it writes. <a href="https://github.com/jxn25-ui/rei-deal-lab#free-sold-comps-with-homeharvest" target="_blank" rel="noopener">How ↗</a></p></div>
             </div></div>
           <div class="two">${App.vizCard("Comp radar", "cpRadar", "Distance rings from the subject · size = weight", 300)}${App.card("Price vs. size", "cp-scatter", `<span class="sub">Closed sales, time-adjusted</span>`)}</div>
           <div class="card"><div class="card-h"><h3>Adjustment grid</h3><span class="sub">Adjust the comp toward the subject: comp better → subtract, comp worse → add. Edit any cell.</span></div><div class="gridwrap" data-grid></div></div>
@@ -311,6 +370,37 @@
       root.querySelector("#cpAdd").addEventListener("click", () => { D.comps.push(C.newComp({ grid: true, sqft: +D.sqft, beds: +D.beds, baths: +D.baths, year: +D.year, lot: +D.lot, garage: +D.garage, cond: +D.condAfter, date: new Date().toISOString().slice(0, 10) })); App.show("comps"); App.toast("Added a comp column. Fill in its details in the grid."); });
       root.querySelector("#cpBest").addEventListener("click", () => { const n = C.pickBest(D); App.show("comps"); App.toast(n ? `Put the ${n} most similar closed sales in the grid` : "No arm's-length closed sales to pick from yet"); });
       const clr = root.querySelector("#cpClear"); clr && clr.addEventListener("click", () => App.confirmBar(`Remove all ${D.comps.length} comps from this deal?`, "Remove comps", () => { D.comps = []; App.show("comps"); }));
+      /* automatic pulls */
+      const busy = (b, on, txt) => { if (!b) return; if (on) { b.dataset.t = b.textContent; b.textContent = txt; b.disabled = true; } else { b.textContent = b.dataset.t || b.textContent; b.disabled = false; } };
+      const needAddr = () => { if (!D.addr || !(D.zip || D.state)) { App.toast("Enter the full subject address in the address bar first."); return true; } return false; };
+      const pv = root.querySelector("#cpPullV");
+      pv && pv.addEventListener("click", async () => { if (needAddr()) return; busy(pv, true, "Pulling…");
+        try { const r = await C.pullValue(D); if (r.added) C.pickBest(D); App.persistDraft(); App.show("comps");
+          App.toast(r.total ? `Added ${r.added} of ${r.total} RentCast comps${r.cached ? " (cached, no lookup used)" : ""}. Confirm sold prices before relying on them.` : "RentCast returned no comps. Widen the radius or months and try again."); }
+        catch (e) { busy(pv, false); App.toast(e.msg || "Couldn't pull comps."); } });
+      const pr = root.querySelector("#cpPullR");
+      pr && pr.addEventListener("click", async () => { if (needAddr()) return; busy(pr, true, "Pulling…");
+        try { const r = await C.pullRent(D); App.persistDraft(); App.show("comps"); App.toast(`Rent estimate ${$(D.compSet.rcRent.rent)}/mo${r.cached ? " (cached)" : ""}`); }
+        catch (e) { busy(pr, false); App.toast(e.msg || "Couldn't pull rent comps."); } });
+      const saveCfg = () => { const url = root.querySelector("#cpApiUrl").value.trim().replace(/\/+$/, ""), code = root.querySelector("#cpApiCode").value.trim();
+        if (url && !/^https:\/\/[^\s/]+/.test(url) && !/^http:\/\/localhost/.test(url)) { App.toast("The Worker address should start with https://"); return false; }
+        App.LS.set("rdl.api", { url, code }); return true; };
+      const sv = root.querySelector("#cpApiSave"); sv && sv.addEventListener("click", () => { if (saveCfg()) { App.toast("Connection saved in this browser"); App.show("comps"); } });
+      const ts = root.querySelector("#cpApiTest");
+      ts && ts.addEventListener("click", async () => { if (!saveCfg()) return; const { url } = C.api(); if (!url) return App.toast("Enter the Worker address first.");
+        busy(ts, true, "Testing…");
+        try { const r = await fetch(url + "/health"); const j = await r.json(); busy(ts, false);
+          App.toast(!j.ok ? "That address answered, but it isn't the comps Worker." : !j.rentcastKey ? "Worker is up, but the RentCast key isn't set yet: npx wrangler secret put RENTCAST_API_KEY" : `Connected. RentCast key is set${j.accessCodeRequired ? "; access code required" : ""}.`); }
+        catch (e) { busy(ts, false); App.toast("Couldn't reach that address. Check it and that the Worker is deployed."); } });
+      root.querySelector(".cp-find").addEventListener("click", e => {
+        const b = e.target.closest("[data-rcuse]"); if (!b) return;
+        const S = D.compSet;
+        if (b.dataset.rcuse === "rent" && S.rcRent) { D.rent = Math.round(S.rcRent.rent / 25) * 25; App.toast(`Market rent set to ${$(D.rent)}/mo on every tab`); }
+        if (b.dataset.rcuse === "facts" && S.rcSubject) { const s = S.rcSubject;
+          if (s.bedrooms) D.beds = +s.bedrooms; if (s.bathrooms) D.baths = +s.bathrooms; if (s.squareFootage) D.sqft = +s.squareFootage; if (s.yearBuilt) D.year = +s.yearBuilt; if (s.lotSize) D.lot = +s.lotSize;
+          App.toast("Subject facts updated from public records"); }
+        App.persistDraft(); App.show("comps");
+      });
       const cs = root.querySelector("#cpClearSample"); cs && cs.addEventListener("click", () => { D.comps = D.comps.filter(c => !c.sample); App.show("comps"); App.toast("Example comps removed"); });
       root.querySelector(".split").addEventListener("click", e => {
         const b = e.target.closest("[data-cact]"); if (!b) return; const c = D.comps.find(x => x.id === b.dataset.cid); if (!c) return;
@@ -378,6 +468,14 @@
       const meth = [{ l: "Adjustment grid (primary)", v: a.value, c: "var(--accent)" }, { l: "Median $/sf × subject GLA", v: a.psfVal, c: "var(--c2)" }];
       if (a.reg) meth.push({ l: `Regression on size (${a.reg.n} sales, R² ${a.reg.r2.toFixed(2)})`, v: a.reg.pred, c: "var(--c3)" });
       if (a.ceiling) meth.push({ l: "Cheapest similar active (ceiling)", v: a.ceiling, c: "var(--c6)" });
+      if (S.rcValue && S.rcValue.price && S.mode !== "arv") meth.push({ l: "RentCast automated estimate (as-is)", v: S.rcValue.price, c: "var(--c9)" });
+      /* RentCast panel */
+      const rc = [], sp = S.rcSubject;
+      if (S.rcValue && S.rcValue.price) rc.push(`<div class="rc-r"><span>RentCast estimate</span><b>${$(S.rcValue.price)}</b><small>${U.$k(S.rcValue.lo)}–${U.$k(S.rcValue.hi)} · an automated as-is value, not ARV</small></div>`);
+      if (sp && (sp.bedrooms || sp.squareFootage)) { const diff = (+sp.bedrooms && +sp.bedrooms !== +D.beds) || (+sp.bathrooms && +sp.bathrooms !== +D.baths) || (+sp.squareFootage && Math.abs(+sp.squareFootage - D.sqft) > 25) || (+sp.yearBuilt && +sp.yearBuilt !== +D.year);
+        rc.push(`<div class="rc-r"><span>Public record</span><b>${sp.bedrooms || "?"} bd · ${sp.bathrooms || "?"} ba · ${sp.squareFootage ? U.num(sp.squareFootage) + " sf" : "? sf"}${sp.yearBuilt ? " · " + sp.yearBuilt : ""}</b>${sp.lastSalePrice ? `<small>Last sold ${$(sp.lastSalePrice)}${sp.lastSaleDate ? " on " + String(sp.lastSaleDate).slice(0, 10) : ""}</small>` : ""}${diff ? `<button type="button" class="link" data-rcuse="facts">Use these facts</button>` : `<small class="pos">Matches the subject</small>`}</div>`); }
+      if (S.rcRent && S.rcRent.rent) rc.push(`<div class="rc-r"><span>Rent estimate</span><b>${$(S.rcRent.rent)}/mo</b><small>${$(S.rcRent.lo)}–${$(S.rcRent.hi)} · ${S.rcRent.comps.length} nearby rentals${S.rcRent.comps[0] ? `, e.g. ${U.esc(S.rcRent.comps[0].a)} at ${$(S.rcRent.comps[0].p)}` : ""}</small>${Math.abs(S.rcRent.rent - D.rent) >= 25 ? `<button type="button" class="link" data-rcuse="rent">Use as market rent (now ${$(D.rent)})</button>` : `<small class="pos">Matches your market rent</small>`}</div>`);
+      App.slot("cp-rc", rc.length ? `<div class="rc">${rc.join("")}</div>` : "");
       App.slot("cp-methods", a.used.length ? U.barsH(meth.filter(m => m.v > 0), { lw: 230 }) + `<p class="fine">$/sf ignores everything but size, so it overvalues small houses and undervalues big ones. The regression fits price to size across ${a.reg ? a.reg.n : "4+"} similar-condition closed sales${a.reg ? `: each extra sq ft is worth about ${$(a.reg.b)} here, a good check on your GLA rate of ${$(S.glaRate)}` : ""}.</p>` : `<p class="fine">Needs closed sales in the grid.</p>`);
       /* scatter */
       App.slot("cp-scatter", this.scatter(a));

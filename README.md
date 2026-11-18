@@ -42,6 +42,35 @@ Tabs: `#hub` `#comps` `#repairs` `#wholesale` `#wholetail` `#novation` `#flip` `
 The parameters are removed from the address bar after loading, so a refresh keeps the visitor's edits.
 Saved deals and drill progress live in the visitor's browser (localStorage).
 
+## Pull comps automatically
+
+The Comp Analyzer can pull comps and rent estimates from [RentCast](https://www.rentcast.io/api) with one click.
+Your API key lives in a free Cloudflare Worker (in `worker/`), never in this public site.
+
+1. Get a RentCast API key (the developer plan includes 50 lookups a month for free).
+2. Deploy the Worker: `cd worker`, `npx wrangler login`, `npx wrangler secret put RENTCAST_API_KEY`, `npx wrangler deploy`.
+3. In the app: **Comp Analyzer → Connection settings**, paste the Worker address, **Test connection**.
+4. Paste the property address in the address bar, then **Pull sale comps** and **Pull rent comps**.
+
+Full steps, the recommended access code, and caching are in [worker/README.md](worker/README.md).
+RentCast comps carry the last list price, so each one is flagged until you confirm its sold price.
+
+## Free sold comps with HomeHarvest
+
+[HomeHarvest](https://github.com/ZacharyHampton/HomeHarvest) (MIT) reads actual sold prices from Realtor.com.
+Run it on your own computer:
+
+```
+pip install homeharvest
+python tools/pull_comps.py "1418 Larkspur Ave, Kansas City, MO 64131"
+```
+
+It writes `comps_<street>_<date>.csv` with sold homes within 1 mile from the last 6 months, plus pending and active
+listings as a price ceiling. Upload that file in the Comp Analyzer and press **Pick best 5**. Options: `--radius 0.5`,
+`--months 9`, `--include sold`, `--type condos`, `--out file.csv`. Realtor.com sometimes blocks automated requests
+(HTTP 403); wait a few minutes and retry from home Wi-Fi. Scraping may conflict with Realtor.com's terms, so keep it
+to personal research.
+
 ## Development
 
 Plain HTML, CSS and JavaScript with no build step and no dependencies. Serve the folder with any static server:

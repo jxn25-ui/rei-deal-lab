@@ -1,0 +1,16 @@
+name = "rei-deal-lab-comps"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+
+[vars]
+# Sites allowed to call this Worker from a browser (comma-separated).
+ALLOWED_ORIGINS = "https://jxn25-ui.github.io,http://localhost:8765"
+# Reuse an answer for the same address for 7 days, so repeat lookups don't use your RentCast quota.
+CACHE_SECONDS = "604800"
+
+# Optional: a KV store makes the cache reliable on *.workers.dev addresses.
+#   npx wrangler kv namespace create COMPS_CACHE
+# then paste the id it prints below and remove the leading "# ".
+# [[kv_namespaces]]
+# binding = "COMPS_CACHE"
+# id = "paste-the-id-here"

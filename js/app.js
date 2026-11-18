@@ -12,7 +12,7 @@
     owner: false, taxAuto: true, taxRate: 1.4, insAuto: true, insAnnual: 2500, rate: 6.875,
     zip: "64131", cityName: "Kansas City", lot: 7200, garage: 1, bsmt: 0, pool: false, cond: 5, condAfter: 3, qual: 4, loc: "N", lat: 0, lng: 0,
     comps: [],
-    compSet: { mode: "arv", area: "suburban", maxMonths: 6, maxDist: 1, glaTol: 20, ageTol: 15, autoRates: true, trendMo: 0.25, glaPct: 35,
+    compSet: { mode: "arv", area: "suburban", ptype: "Single Family", maxMonths: 6, maxDist: 1, glaTol: 20, ageTol: 15, autoRates: true, trendMo: 0.25, glaPct: 35,
       glaRate: 55, bedAdj: 3500, bathAdj: 6000, halfAdj: 3000, garageAdj: 5000, bsmtRate: 25, lotRate: 1.5, ageRate: 700, condPct: 6, qualPct: 7, locPct: 5, pool: 9000, distressPct: 0 },
     rehab: { mode: "itemized", band: "moderate", bandPos: 50,
       lv: { gutters: 1, landscape: 1, hvac: 1, wh: 1, elec: 1, plumb: 1, paint: 2, drywall: 1, floor: 3, kitchen: 1, bath: 1, appl: 1, light: 1, safety: 1, trash: 1, dumpster: 1, permits: 1, cont: 2 },

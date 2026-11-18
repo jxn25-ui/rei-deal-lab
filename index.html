@@ -408,6 +408,12 @@ body.gl-off .gt:not(.demo){text-decoration:none;cursor:inherit}body.gl-off .gt:n
 .ab-c em{font:600 9.5px var(--f-mono);font-style:normal;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .ab-c.ok{border-color:color-mix(in srgb,var(--good) 40%,var(--line))}.ab-c.miss{color:var(--warn);border-style:dashed}
 .ab-m{font-size:12.5px;color:var(--muted);margin-left:4px}.ab-m b{color:var(--fg);font-weight:600}
+.cp-conn{margin-top:10px}.cp-conn summary{margin:0 0 8px}
+.cp-conn label{display:block;font-size:12px;color:var(--muted);margin:8px 0 4px}
+.rc{display:grid;gap:8px;margin-top:12px}
+.rc-r{display:grid;gap:2px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--bg2)}
+.rc-r>span{font:600 9.5px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.rc-r b{font:600 15px var(--f-mono)}.rc-r small{font-size:12px;color:var(--muted)}.rc-r small.pos{color:var(--good)}.rc-r .link{justify-self:start;font-size:12.5px;margin-top:2px}
 /* ---------- toast / confirm ---------- */
 #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);opacity:0;pointer-events:none;background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:600;z-index:60;transition:all .25s;max-width:calc(100% - 32px)}
 #toast.on{opacity:1;transform:translate(-50%,0)}
@@ -453,18 +459,19 @@ body.gl-off .gt:not(.demo){text-decoration:none;cursor:inherit}body.gl-off .gt:n
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="confirm" hidden role="alertdialog" aria-label="Confirm"><p></p><button type="button" class="btn ghost sm no">Cancel</button><button type="button" class="btn sm yes">Confirm</button></div>
 
-<script src="js/data.js?v=3" charset="utf-8"></script>
-<script src="js/address.js?v=3" charset="utf-8"></script>
-<script src="js/fin.js?v=3" charset="utf-8"></script>
-<script src="js/ui.js?v=3" charset="utf-8"></script>
-<script src="js/viz.js?v=3" charset="utf-8"></script>
-<script src="js/app.js?v=3" charset="utf-8"></script>
-<script src="js/mods1.js?v=3" charset="utf-8"></script>
-<script src="js/mods2.js?v=3" charset="utf-8"></script>
-<script src="js/tools.js?v=3" charset="utf-8"></script>
-<script src="js/train.js?v=3" charset="utf-8"></script>
-<script src="js/terms.js?v=3" charset="utf-8"></script>
-<script src="js/comps.js?v=3" charset="utf-8"></script>
-<script src="js/glossary.js?v=3" charset="utf-8"></script>
+<script src="js/data.js?v=4" charset="utf-8"></script>
+<script src="js/address.js?v=4" charset="utf-8"></script>
+<script src="js/config.js?v=4" charset="utf-8"></script>
+<script src="js/fin.js?v=4" charset="utf-8"></script>
+<script src="js/ui.js?v=4" charset="utf-8"></script>
+<script src="js/viz.js?v=4" charset="utf-8"></script>
+<script src="js/app.js?v=4" charset="utf-8"></script>
+<script src="js/mods1.js?v=4" charset="utf-8"></script>
+<script src="js/mods2.js?v=4" charset="utf-8"></script>
+<script src="js/tools.js?v=4" charset="utf-8"></script>
+<script src="js/train.js?v=4" charset="utf-8"></script>
+<script src="js/terms.js?v=4" charset="utf-8"></script>
+<script src="js/comps.js?v=4" charset="utf-8"></script>
+<script src="js/glossary.js?v=4" charset="utf-8"></script>
 </body>
 </html>
