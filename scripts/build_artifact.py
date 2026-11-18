@@ -5,6 +5,9 @@ claude.ai Artifacts wrap the page in their own <!doctype>/<head>/<body>, so they
 need just the inner content. This writes that fragment to .artifact/index.html.
 
 Usage:  python scripts/build_artifact.py
+
+When you change any JS file, bump the ?v= number on the script tags in index.html
+so returning visitors on the hosted site get the new files.
 """
 import pathlib, re
 
@@ -15,6 +18,7 @@ body = re.search(r"<body>(.*?)</body>", src, re.S).group(1)
 # drop tags the artifact skeleton already provides
 head = re.sub(r'\s*<meta (charset|name="viewport")[^>]*>', "", head)
 head = re.sub(r'\s*<link rel="icon"[^>]*>', "", head)
+body = re.sub(r'(src="js/[^"?]+)\?v=[^"]*"', r'"', body)  # artifact files are served without query strings
 out = root / ".artifact" / "index.html"
 out.parent.mkdir(exist_ok=True)
 out.write_text(head.strip() + "\n\n" + body.strip() + "\n", encoding="utf-8")
